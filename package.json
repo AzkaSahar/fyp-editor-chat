@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@tiptap/core": "^3.0.6",
     "@tiptap/extension-color": "^3.0.6",
     "@tiptap/extension-font-family": "^3.0.6",
@@ -28,7 +29,9 @@
     "next": "15.3.5",
     "pdf-parse": "^1.1.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
