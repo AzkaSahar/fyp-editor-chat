@@ -19,6 +19,8 @@ import Image from "@tiptap/extension-image";
 export type EditorHandle = {
   setHTMLContent: (html: string) => void;
   getTextContent: () => string;
+  getHTMLContent: () => string;
+  
 };
 
 const DocumentEditor = forwardRef<EditorHandle>((_, ref) => {
@@ -58,6 +60,10 @@ const DocumentEditor = forwardRef<EditorHandle>((_, ref) => {
     getTextContent() {
       return editor?.getText() || "";
     },
+    getHTMLContent(){
+      return editor?.getHTML()|| "";
+
+    }
   }));
 
   if (!editor) return <div>Loading editor...</div>;

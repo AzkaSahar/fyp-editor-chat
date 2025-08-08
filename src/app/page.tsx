@@ -1,100 +1,106 @@
 "use client";
 
+
 import DocumentEditor, { EditorHandle } from "@/components/DocumentEditor";
 import UploadButton from "@/components/UploadButton";
 import { useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type Message = { role: "assistant" | "user"; content: string };
+
+type Message = { role: "assistant" | "user"|"system"; content: string };
 type Doc = {
   id: string;
   name: string;
   content: string;
-  systemMessage?: {role:"system"; content:string}
-  messages: Message[];
 };
+
 
 export default function Home() {
   const editorRef = useRef<EditorHandle>(null!)
   const [docs, setDocs] = useState<Doc[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "assistant", content: "Hi! How can I help with your documents?" }
+    ]);
+  const [systemMessage, setSystemMessage] = useState<{role:"system"; content:string} | null>(null);
+
+
   const [input, setInput] = useState("");
+
 
   const handleUpload = (name: string, html: string) => {
     const newDoc: Doc = {
       id: crypto.randomUUID(),
       name,
       content: html,
-      messages: [
-        { role: "assistant", content: "Hi! How can I help with this document?" }
-      ],
     };
-    setDocs(prev => [...prev, newDoc]);
+    setDocs(prev => {
+      const updatedDocs = [...prev, newDoc];
+      const combinedContext = updatedDocs
+       .map(d => `Document: ${d.name}\n${d.content}`)
+       .join("\n\n");
+      setSystemMessage({
+        role: "system",
+        content: "These are all uploaded documents. Use them for context:\n\n" + combinedContext,
+        });
+        return updatedDocs;
+    });
+
     setCurrentDocId(newDoc.id);
-    editorRef.current.setHTMLContent(html);
+    editorRef.current.setHTMLContent(newDoc.content);
   };
 
+
   const activeDoc = docs.find(d => d.id === currentDocId);
-  const currentMessages = activeDoc?.messages ?? [];
 
-const handleSend = async () => {  
-  if (!input.trim() || !activeDoc) return;
 
-  // 1. Grab or create the one-off system message for this doc
-  let sysMsg = activeDoc.systemMessage;
-  if (!sysMsg) {
-    const docText = editorRef.current.getTextContent();
-    sysMsg = {
-      role: "system" as const,
-      content:
-        "This is the user's document context. Keep this in mind for all future replies:\n\n" +
-        docText,
-    };
-    // Persist it on the active doc
-    setDocs(prev =>
-      prev.map(d =>
-        d.id === activeDoc.id ? { ...d, systemMessage: sysMsg } : d
+const handleSend = async () => {
+  if (!input.trim()) return;
+
+  // 1️⃣  Editor ka latest text docs me save karo
+  
+  const latesthtml = editorRef.current.getHTMLContent();
+  if (currentDocId) {
+    setDocs(docs =>
+      docs.map(d =>
+        d.id === currentDocId ? { ...d, content: latesthtml } : d
       )
     );
   }
 
-  // 2. Build the user message
-  const userMsg: Message = {
-    role: "user",
-    content: input,
+  // 2️⃣  Har send pe naya system-message banao
+  const latestText = editorRef.current.getTextContent();
+  const sysMsg: Message = {
+    role: "system",
+    content:
+      "This is the user's document context. Keep this in mind for all future replies:\n\n" +
+      latestText,
   };
 
-  // 3. Update UI immediately with the user message
-  setDocs(prev =>
-    prev.map(d =>
-      d.id === activeDoc.id
-        ? { ...d, messages: [...d.messages, userMsg] }
-        : d
-    )
-  );
+  // 3️⃣  User message aur UI update
+  const userMsg: Message = { role: "user", content: input };
+  setMessages(prev => [...prev, userMsg]);
   setInput("");
 
-  // 4. Prepare the payload: [ system, ...history, user ]
-  const payload = [sysMsg, ...activeDoc.messages, userMsg];
+  // 4️⃣  Payload taiyar karo
+  const payload = [sysMsg, ...messages, userMsg];
 
-  // 5. Send to your backend
+  // 5️⃣  Backend call
   const res = await fetch("http://localhost:8000/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: payload }),
+    body: JSON.stringify({ messages: payload, activeDocumentId: currentDocId }),
   });
-  const { reply } = await res.json();
+  const data = await res.json();
 
-  // 6. Append the assistant’s reply to the UI
-  setDocs(prev =>
-    prev.map(d =>
-      d.id === activeDoc.id
-        ? { ...d, messages: [...d.messages, { role: "assistant", content: reply }] }
-        : d
-    )
-  );
+  // 6️⃣  AI reply UI me dalo
+  setMessages(prev => [
+    ...prev,
+    { role: "assistant", content: data.reply || "No response." },
+  ]);
 };
+
 
   return (
     <main className="flex h-screen p-6 gap-6 bg-gray-50">
@@ -103,12 +109,21 @@ const handleSend = async () => {
         <h1 className="text-lg font-semibold mb-2">📝 Document Editor</h1>
         <UploadButton onUpload={handleUpload} />
 
+
         {/* Document Tabs */}
         <div className="flex gap-2 mb-4">
           {docs.map(doc => (
             <button
               key={doc.id}
               onClick={() => {
+                if(currentDocId){
+                  const latesthtml= editorRef.current.getHTMLContent();
+                  setDocs(prev=>
+                    prev.map(d=>
+                      d.id == currentDocId?{...d,content:latesthtml}:d
+                    )
+                  );
+                }
                 setCurrentDocId(doc.id);
                 editorRef.current.setHTMLContent(doc.content);
               }}
@@ -123,14 +138,16 @@ const handleSend = async () => {
           ))}
         </div>
 
+
         <DocumentEditor ref={editorRef} />
       </div>
+
 
       {/* Right: Chat Pane */}
       <div className="w-[350px] h-full border-l pl-4 flex flex-col">
         <h2 className="text-md font-semibold mb-2">💬 AI Chat Assistant</h2>
         <div className="flex-1 overflow-y-auto space-y-2">
-          {currentMessages.map((msg, i) => (
+          {messages.map((msg, i) => (
             <div
               key={i}
               className={`p-2 rounded ${
@@ -189,3 +206,4 @@ const handleSend = async () => {
     </main>
   );
 }
+
