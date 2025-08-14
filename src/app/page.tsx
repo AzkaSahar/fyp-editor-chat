@@ -1,6 +1,5 @@
 "use client";
 
-
 import DocumentEditor, { EditorHandle } from "@/components/DocumentEditor";
 import UploadButton from "@/components/UploadButton";
 import { useRef, useState } from "react";
@@ -27,6 +26,12 @@ export default function Home() {
 
 
   const [input, setInput] = useState("");
+  const MODEL_OPTIONS = [
+  { id: "openai/gpt-4o", label: "OpenAI · GPT-4o" },
+  { id: "meta/llama-4-scout-17b-16e-instruct", label: "Meta · Llama 4 Scout" }, // exact slug from Playground → Raw
+  { id: "deepseek/DeepSeek-V3-0324", label: "DeepSeek · Chat" }, // GH Models slug
+];
+   const [model, setModel] = useState<string>(MODEL_OPTIONS[0].id);
 
 
   const handleUpload = (name: string, html: string) => {
@@ -90,7 +95,7 @@ const handleSend = async () => {
   const res = await fetch("http://localhost:8000/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: payload, activeDocumentId: currentDocId }),
+    body: JSON.stringify({ messages: payload, activeDocumentId: currentDocId,model }),
   });
   const data = await res.json();
 
@@ -145,7 +150,23 @@ const handleSend = async () => {
 
       {/* Right: Chat Pane */}
       <div className="w-[350px] h-full border-l pl-4 flex flex-col">
-        <h2 className="text-md font-semibold mb-2">💬 AI Chat Assistant</h2>
+        {/*<h2 className="text-md font-semibold mb-2">💬 AI Chat Assistant</h2>*/}
+        <div className="flex items-center justify-between mb-2">
+  <h2 className="text-md font-semibold">💬 AI Chat Assistant</h2>
+  <select
+    value={model}
+    onChange={(e) => setModel(e.target.value)}
+    className="border rounded px-2 py-1 text-sm"
+    title="Choose model"
+  >
+    {MODEL_OPTIONS.map((m) => (
+      <option key={m.id} value={m.id}>
+        {m.label}
+      </option>
+    ))}
+  </select>
+</div>
+
         <div className="flex-1 overflow-y-auto space-y-2">
           {messages.map((msg, i) => (
             <div
