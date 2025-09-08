@@ -20,7 +20,8 @@ export type EditorHandle = {
   setHTMLContent: (html: string) => void;
   getTextContent: () => string;
   getHTMLContent: () => string;
-  
+  getSelection: () => { from: number; to: number; text: string; isEmpty: boolean };
+  applyEdit: (params: { kind: "replace"|"insert"|"delete"; from: number; to: number; newText?: string }) => void;
 };
 
 const DocumentEditor = forwardRef<EditorHandle>((_, ref) => {
@@ -63,9 +64,30 @@ const DocumentEditor = forwardRef<EditorHandle>((_, ref) => {
     getHTMLContent(){
       return editor?.getHTML()|| "";
 
-    }
+    },
+     getSelection() {
+      if (!editor) return { from: 0, to: 0, text: "", isEmpty: true };
+      const sel = editor.state.selection;
+      const from = sel.from;
+      const to = sel.to;
+      const text = editor.state.doc.textBetween(from, to, "\n");
+      return { from, to, text, isEmpty: sel.empty };
+    },
+    applyEdit({ kind, from, to, newText }: { kind: "replace"|"insert"|"delete"; from: number; to: number; newText?: string }) {
+      if (!editor) return;
+      const chain = editor.chain().focus();
+      if (kind === "replace") {
+        chain.setTextSelection({ from, to }).insertContent(newText ?? "").run();
+      } else if (kind === "insert") {
+        chain.setTextSelection({ from, to: from }).insertContent(newText ?? "").run();
+      } else if (kind === "delete") {
+        chain.setTextSelection({ from, to }).deleteSelection().run();
+      }
+    },
+
   }));
 
+ 
   if (!editor) return <div>Loading editor...</div>;
 
   return <EditorContent editor={editor} className="prose max-w-none min-h-[500px] p-4 bg-white border rounded shadow-sm" />
